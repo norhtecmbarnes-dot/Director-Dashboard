@@ -1,10 +1,25 @@
-# PersonalAI Dashboard
+# Director Dashboard
 
-**Build your own private, local-first AI productivity system — no subscriptions, no data leaks, no vendor lock-in.**
+**A chat-driven AI video director — local-first, private, no subscriptions, no vendor lock-in.**
 
-A complete AI Operating System that runs on your laptop. Includes Research Assistant, Writing Studio, Visual Builder, Document Generator, Brand Workspace, Task Scheduler, Calendar, Telegram integration, and more.
+Talk to **the Auteur** in plain English and get MiniMax H3 video with synchronized audio: four-step prototype mode for fast iteration, shot chaining for long-form sequences, and an avatar studio (local or cloud).
 
-**Michael C. Barnes' 5th book on Generative AI** — the full 384-page book is included **free**.
+This is the **Director** sub-project, built on the shared **PersonalAI Dashboard** base program. The base (chat, models, documents, notes, tasks, calendar, local-first storage) lives in both sub-projects; only the product-specific screens differ.
+
+## 🎬 MiniMax H3 Director Dashboard
+
+A chat-driven AI video director. Talk to the Auteur in plain English, get MiniMax H3 video with synchronized audio. Includes 4-step prototype mode, shot chaining for long-form video, and an avatar studio (local + cloud).
+
+**[Director Dashboard For Dummies — Full Guide](docs/DIRECTOR-FOR-DUMMIES.md)**
+
+Quick start: double-click `start-director.bat` → open `http://localhost:3000/minimax-h3`
+
+**Key Features:**
+- 🎭 **The Auteur** — AI director persona writes scripts in "Minimax Generation Mode" format
+- ⚡ **Prototype / Final** — 4-step turbo LoRA for fast iteration, 30-step for final quality
+- 🔗 **Shot chaining** — last frame feeds next shot for seamless long-form video
+- 🧑‍💼 **Avatar Studio** — local (Qwen-Image + VocalLab + Wan InfiniteTalk) or cloud (HeyGen)
+- 🚀 **One-click startup** — `start-director.bat` launches Ollama + ComfyUI + dashboard together
 
 ## 📖 Free Book
 
@@ -63,8 +78,8 @@ Quick start: double-click `start-director.bat` → open `http://localhost:3000/m
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/norhtecmbarnes-dot/PersonalAI-Dashboard.git
-cd PersonalAI-Dashboard
+git clone https://github.com/norhtecmbarnes-dot/Director-Dashboard.git
+cd Director-Dashboard
 npm install
 cp .env.example .env.local
 
