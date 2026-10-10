@@ -40,8 +40,51 @@ export async function vocallabTts(params: VocalLabTtsParams): Promise<Buffer> {
     throw new Error(`VocalLab ${res.status}: ${text.slice(0, 300)}`);
   }
 
-  const arrayBuf = await res.arrayBuffer();
-  return Buffer.from(arrayBuf);
+  // VocalLab does NOT stream raw audio. It returns JSON containing a base64 data
+  // URL, e.g.
+  //   { "id": "...", "status": "pending",
+  //     "audio_base64": "data:audio/mpeg;base64,//uUxAAC..." }
+  // The previous implementation returned res.arrayBuffer() directly, so callers
+  // received the JSON *text* labelled as audio/mpeg — which silently corrupted
+  // every avatar voice uploaded to ComfyUI. Parse the payload properly, and stay
+  // defensive in case the API ever returns real audio bytes.
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  const looksJson = contentType.includes('application/json') || contentType.includes('text/');
+
+  if (!looksJson) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    // A real MP3 starts 0xFF 0xFB/0xF3/0xF2; anything starting '{' is JSON we missed.
+    if (buf.length > 0 && buf[0] !== 0x7b) return buf;
+  }
+
+  const raw = await res.text();
+  let data: { status?: string; audio_base64?: string; audio_url?: string; id?: string; error?: string };
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(`VocalLab returned an unreadable response: ${raw.slice(0, 200)}`);
+  }
+
+  if (data.error) throw new Error(`VocalLab: ${data.error}`);
+
+  if (data.audio_base64) {
+    const comma = data.audio_base64.indexOf(',');
+    const payload =
+      data.audio_base64.startsWith('data:') && comma !== -1
+        ? data.audio_base64.slice(comma + 1)
+        : data.audio_base64;
+    return Buffer.from(payload, 'base64');
+  }
+
+  if (data.audio_url) {
+    const audioRes = await fetch(data.audio_url);
+    if (!audioRes.ok) throw new Error(`VocalLab audio download failed: ${audioRes.status}`);
+    return Buffer.from(await audioRes.arrayBuffer());
+  }
+
+  throw new Error(
+    `VocalLab returned no audio (status: ${data.status || 'unknown'}, id: ${data.id || 'n/a'})`
+  );
 }
 
 export async function vocallabListVoices(): Promise<unknown> {
