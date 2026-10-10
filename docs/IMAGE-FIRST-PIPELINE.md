@@ -360,7 +360,7 @@ You own far more of this pipeline than §8 assumed, and most of it is **unmetere
 | **VideoExpress** (Ponna) | Text/image → video, consistent-character cinematic, clip merge | **Lifetime — unlimited** | Manual (assumed — verify) |
 | **Clone Voice AI** (Ponna) | Voice cloning | **Lifetime — unlimited** | Manual (assumed — verify) |
 | **Artistly** (Ponna) | AI image generation | **Lifetime — unlimited** | Manual (assumed — verify) |
-| **Vois** | Local voice generation + cloning, mastering, timeline | **Subscription — unlimited** | **Likely** — ships agent skills for Claude Code/Codex |
+| **Vois** | Local voice generation + cloning, mastering, timeline | **Subscription — unlimited** | **Yes — `vois-cli` 2.3.1 verified installed** |
 | **VocalLab** | TTS API | Metered API | **Yes — already integrated** (`VOCALLAB_API_KEY`) |
 | **fish-speech** (in Duix) | Local cloned TTS, offline | **Free / local** | **Yes — already integrated** via `src/lib/duix/client.ts` |
 | **Local ComfyUI** | Images, video, animation | **Free / local** | Yes — already wired |
@@ -385,6 +385,51 @@ be worth the manual step.
 
 **Action:** confirm whether VideoExpress, Artistly and Clone Voice AI have any API or command-line
 surface. If any does, it joins the automated set and the metered fallbacks shrink.
+
+### Vois — verified integration (the default voice path)
+
+Verified on this machine, not assumed:
+
+```
+C:\Users\mbarn\AppData\Local\Vois\vois-cli.exe     →  vois-cli 2.3.1
+```
+
+It is a real, scriptable CLI with stdin/stdout piping and a JSON mode — which makes it a *better*
+integration target than the metered VocalLab API:
+
+```bash
+vois-cli status                                    # ALWAYS run first; exit 2 = app not running
+vois-cli voice list --source all --format json     # library + builtin + cloned + designed voices
+vois-cli tts generate -t "<text>" -v <voiceId> -o <abs-path>.wav --format json \
+      [--engine omni|standard|multilingual|fast] [--language English] [--seed 1234] [--speed 1.0]
+vois-cli tts generate -t - -o out.wav < script.txt # stdin becomes the text
+vois-cli tts generate -t 'Hello' -o - | ...        # '-' writes WAV bytes to stdout
+```
+
+Facts that matter for the integration:
+
+- **Four engines:** `fast` (English), `standard`/Expressive (English), `multilingual` (legacy 23
+  languages), `omni` (Pro — 646 languages + voice design). Quality is set per call.
+- **Voice IDs are exact strings:** library voices are `category_slug/voice_slug`, cloned are
+  `cloned_…`, designed are `designed_…`. Read them from `voice list`, never guess.
+- **`--seed` gives reproducible renders** on the Expressive and Multilingual engines — genuinely
+  useful for keeping a character's delivery consistent across shots.
+- **`--format json` on everything**, so the Director can parse results instead of scraping text.
+- **Piping works both ways** — `-o -` streams WAV to stdout, so the Director can pipe straight into
+  FFmpeg without a temp file.
+- **Exit codes are documented** (2 = app not running, 5 = generation failed) — map these onto shot
+  states rather than treating any failure as generic.
+- **Config precedence:** CLI flag > env var > `cli.toml` > default. Config lives at
+  `%APPDATA%\so.vois.app\cli.toml`; env overrides are `VOIS_FORMAT`, `VOIS_VOICE`, `VOIS_ENGINE`,
+  `VOIS_QUALITY`, `VOIS_LANGUAGE`, `VOIS_CLI_CONFIG`.
+- **Official agent skill file:** `https://vois.so/skills/vois-cli/SKILL.md` — the vendor's own
+  complete reference, written to be fetched by an agent. There is a second skill for dialogue
+  writing (emotion tags, `[pause=500]`, speaker tags) that would help the Auteur produce better
+  scripts for TTS.
+
+**The one prerequisite:** the **Vois desktop app must be running** (same machine, same OS user). It
+is an IPC client, not a server — a cloud or containerised agent cannot reach it. The Director should
+check `vois-cli status` before a batch and surface a clear "start Vois" state if it returns exit 2.
 
 ### The licence picture, revised
 
