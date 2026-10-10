@@ -272,7 +272,93 @@ move the animate pass to WAN 2.2). Do this deliberately, not by accident.
 
 ---
 
-## 11. Evidence and honesty
+## 11. Render providers — Jogg.ai and Talking Photos (your current tools)
+
+This section revises §8. If Jogg and Talking Photos are setting your quality bar, **the goal is not
+to replace them — it is to have the Director *conduct* them.**
+
+### The reframe: the Director is the conductor, not the renderer
+
+The Director's real value is not that it renders pixels. It is that it holds **the script breakdown,
+the shot list, continuity, the curation gate, the text overlay and the final assembly** — and then
+**dispatches each shot to the best available renderer.** That means the same shot list can route a
+talking-head closeup to Jogg and a wide establishing scene to local ComfyUI.
+
+This is the pattern the app already uses one level down: `src/lib/models/model-router.ts` routes
+between *models*. Extending that to route between *render providers* is the same idea, one layer up.
+
+### Provider matrix
+
+| Provider | Drivable? | Best at | Integration shape |
+|---|---|---|---|
+| **Jogg.ai** | **Yes — REST API, async** | Talking avatars, photo avatars, 450+ stock avatars, 50+ languages | Submit → webhook → fetch URL |
+| **TalkingPhotos.ai** | **No public API** | **~1-minute closeups**, singing, full-body + hand motion, storyboards to 5 min | **Manual gate** — prompt/audio out, file back in |
+| **Local ComfyUI** | Yes — already wired | Non-talking scenes, full creative control, no per-clip cost | Existing graph → `/prompt` → `/history` |
+| **Wan 2.2 I2V (local)** | Yes | Licence-clean animate pass | Existing graph pattern |
+
+### Jogg.ai API — verified endpoints
+
+```
+POST /v2/create_video_from_avatar      header: x-api-key
+     avatar: { avatar_id, avatar_type: 0=public | 1=custom photo avatar }
+     voice:  { type: "script" (+script) | "audio" (+audio_url, voice_id still required) }
+     aspect_ratio: portrait|landscape|square · screen_style: 1=full 2=split 3=PiP
+     caption: bool · webhook_url
+GET  /v2/avatar_video/{id}             poll status (or rely on the webhook)
+POST /v2/photo_avatar/photo/generate   your own photo → custom avatar (4 images, 0.2 credit)
+POST /v2/upload/asset                  signed URL → PUT your own audio → use as audio_url
+GET  /v2/user/whoami | remaining quota
+```
+
+Practical notes worth baking in: it is **asynchronous** (2–5 min per render), so the Director needs a
+webhook receiver or a poller — the app already has polling patterns for ComfyUI. Video generation
+bills **1 credit per 2 minutes**; the API needs a **paid plan** (Starter and above). Jogg's own docs
+advise keeping scripts **under ~2 minutes**.
+
+### TalkingPhotos.ai — treat as a human-in-the-loop step
+
+No public API, so it cannot be automated. That is not a problem — **it is a gate**, exactly like the
+still-curation gate in §4. The Director writes the shot, exports the prompt and the audio, and the
+operator renders in Talking Photos and drops the file back. Model the shot state machine the same way:
+`pending → rendered-externally → received`.
+
+Its strength is your stated one — **1-minute closeups**. Use it for the hero talking shots, not the
+whole film.
+
+### Why this fits the pipeline
+
+Both of your tools have a **~1–2 minute per-clip ceiling**. That is the strongest argument for the
+architecture in §2: a long-form result is necessarily **shots assembled with continuity**, which is
+exactly what the Director already does (`chains`, `shots`, `WanFirstLastFrameToVideo` chaining).
+
+### The design
+
+A small provider interface, with one adapter per renderer — so adding a provider never touches the
+shot logic:
+
+```ts
+interface RenderProvider {
+  id: 'comfyui' | 'jogg' | 'talkingphotos-manual' | 'wan-i2v';
+  canRender(shot: Shot): boolean;          // talking? closeup? needs audio? local-only?
+  submit(shot: Shot, assets: Assets): Promise<{ jobId: string }>;
+  poll(jobId: string): Promise<RenderStatus>;   // or accept a webhook
+  fetchResult(jobId: string): Promise<{ filePath: string }>;
+}
+```
+
+Routing rule of thumb: **talking closeup → Jogg (or Talking Photos if it's a hero shot)**;
+**non-talking scene → local ComfyUI**; **local-only / licence-sensitive work → WAN 2.2 + local**.
+Set per-shot in the markdown contract, with a provider preference and a fallback.
+
+### The licence picture, revised
+
+Choosing Jogg over local MiniMax H3 **sidesteps the H3 local-use licence problem** (§5.1) for avatar
+shots — you are using a hosted service under its own terms rather than running restricted weights
+locally. That is a genuine practical argument for routing avatar work to Jogg, independent of quality.
+
+---
+
+## 12. Evidence and honesty
 
 The five reports are at `docs/research/` and every substantive claim above traces to a cited source in
 one of them:
