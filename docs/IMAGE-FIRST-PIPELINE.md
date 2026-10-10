@@ -350,6 +350,42 @@ Routing rule of thumb: **talking closeup → Jogg (or Talking Photos if it's a h
 **non-talking scene → local ComfyUI**; **local-only / licence-sensitive work → WAN 2.2 + local**.
 Set per-shot in the markdown contract, with a provider preference and a fallback.
 
+### Your full toolset, and the routing economics
+
+You own far more of this pipeline than §8 assumed, and most of it is **unmetered**:
+
+| Tool | Does | Metering | Drivable? |
+|---|---|---|---|
+| **Talking Photos** (Ponna) | Talking/singing photos, ~1-min closeups, full-body + hand motion | **Lifetime — unlimited** | Manual (no public API) |
+| **VideoExpress** (Ponna) | Text/image → video, consistent-character cinematic, clip merge | **Lifetime — unlimited** | Manual (assumed — verify) |
+| **Clone Voice AI** (Ponna) | Voice cloning | **Lifetime — unlimited** | Manual (assumed — verify) |
+| **Artistly** (Ponna) | AI image generation | **Lifetime — unlimited** | Manual (assumed — verify) |
+| **Vois** | Local voice generation + cloning, mastering, timeline | **Subscription — unlimited** | **Likely** — ships agent skills for Claude Code/Codex |
+| **VocalLab** | TTS API | Metered API | **Yes — already integrated** (`VOCALLAB_API_KEY`) |
+| **fish-speech** (in Duix) | Local cloned TTS, offline | **Free / local** | **Yes — already integrated** via `src/lib/duix/client.ts` |
+| **Local ComfyUI** | Images, video, animation | **Free / local** | Yes — already wired |
+| **Jogg.ai** | Talking avatars, photo avatars | **Metered** (1 credit / 2 min) | Yes — REST API |
+
+**This inverts the default routing.** When most of your capacity is flat-rate and unmetered, the
+correct order is: **prefer the unlimited tools first, and spend metered credits only where nothing else
+does the job.**
+
+```
+voice        → Vois (local, unlimited)  →  fish-speech (local, free)  →  VocalLab (API)  →  Jogg
+images       → Artistly (unlimited)     →  local ComfyUI (free)
+talking head → Talking Photos (unlimited, manual)  →  Jogg (metered, automated)
+scenes/animation → local ComfyUI + Wan 2.2 (free)  →  VideoExpress (unlimited, manual)
+```
+
+The trade-off is **automatic vs unlimited**, and it is a real one: the Ponna tools are unmetered but
+manual, while Jogg is automated but metered. That is precisely why the `RenderProvider` interface in
+§11 matters — the automated and manual providers sit behind the same contract, so you can choose per
+shot (and per deadline) without changing any shot logic. Some shots will be automated; hero shots may
+be worth the manual step.
+
+**Action:** confirm whether VideoExpress, Artistly and Clone Voice AI have any API or command-line
+surface. If any does, it joins the automated set and the metered fallbacks shrink.
+
 ### The licence picture, revised
 
 Choosing Jogg over local MiniMax H3 **sidesteps the H3 local-use licence problem** (§5.1) for avatar
