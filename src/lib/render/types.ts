@@ -22,6 +22,7 @@
 export type Capability =
   | 'tts' /** text -> speech audio */
   | 'voice-clone' /** create a voice from a sample */
+  | 'music' /** caption + lyrics -> a full song (MiniMax Music 3) */
   | 'image' /** text -> still image */
   | 'video' /** text -> video */
   | 'image-to-video' /** animate an existing still */
@@ -30,6 +31,7 @@ export type Capability =
 export const CAPABILITY_LABELS: Record<Capability, string> = {
   tts: 'Text to speech',
   'voice-clone': 'Voice cloning',
+  music: 'Music / song generation',
   image: 'Image generation',
   video: 'Video generation',
   'image-to-video': 'Image to video',

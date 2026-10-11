@@ -464,3 +464,95 @@ one of them:
   and build.
 - **Wan2.2-S2V / Animate licences** conflict between sources (Apache base vs OpenRAIL claim) —
   verify before shipping commercially.
+
+---
+
+## 13. Addendum — music, and a working reference for the whole pipeline
+
+*A workflow shared by the author (The AI Blueprint, "MiniMax Music 3 in ComfyUI"). Verified against
+ComfyUI's own documentation and the Hugging Face model repos before writing anything down.*
+
+### The gap this exposed
+
+The provider registry has capabilities for **tts, voice-clone, image, video, image-to-video and
+talking-head** — and **no music**. `'music'` has now been added to the `Capability` union in
+`src/lib/render/types.ts`, with no provider behind it yet. That absence is real: the Director can
+generate video *with audio*, and has no way to generate a **score, a song, or a soundtrack**, and no
+mixing or mastering step at all.
+
+### MiniMax Music 3 — verified
+
+- **Real and officially supported in ComfyUI.** ComfyUI ships a first-party template (*Template Library
+  → Audio → MiniMax Music 3*), and the docs describe it as natively supported with open weights.
+  Sources: `docs.comfy.org/tutorials/audio/minimax/minimax-music-3`, `github.com/MiniMax-AI/MiniMax-Music3`.
+- **What it does:** complete songs up to **5 minutes**, 32 kHz 16-bit stereo, with vocals, from a prompt.
+- **Architecture:** hierarchical autoregressive — an **8B global LLM** for long-range musical structure,
+  a **0.6B local LLM** for frame-level acoustic detail, plus a flow-matching DiT and a Flow-VAE.
+- **Two inputs, and this is the important part for us:**
+  - a structured **Caption** — *Global Metadata* (genre, BPM, key, mood, production) / *Vocal Details* /
+    *Arrangement*;
+  - **Lyrics** with section tags (`[Intro]`, `[Verse]`, `[Chorus]`, `[Bridge]`, `[Instrumental]`,
+    `[Outro]`).
+- **Controls:** `max_duration` (template defaults to 60 s; model supports ~300 s), `seed` (*fix to
+  reproduce a song; change for a different take*), `tiled_decode` (tiled VAE decode to cut VRAM on long
+  songs — off on high-VRAM for best quality).
+- **Size:** ~2.5 GB model; reported to run in roughly **6 GB VRAM** with tiling. GGUF quantisations exist
+  (`Abiray/MiniMax-Music3-GGUF`, `realrebelai/MiniMax-Music-3_GGUFs`) — Q8_0 ≈2.7 GB and Q6_K ≈2.1 GB are
+  the sensible tiers; *audio gives quantisation error nowhere to hide*, so don't drop low.
+- **Comfy-Org repack files** (`Comfy-Org/MiniMax-Music-3`): `minimax_music3_dit_{fp16,fp32,int8_convrot}`,
+  `minimax_music3_text_encoder_{bf16,pruned_bf16,pruned_int8_convrot}`, `minimax_music3_dav` (VAE).
+- **It ships an official caption-rewriter agent skill** — the same "give the agent a skill file" pattern
+  as Vois. Turns a rough brief into a structured Music 3 caption.
+
+> ⚠️ **Licence conflict — do not publish a claim.** ComfyUI's docs say the weights are under the
+> **MiniMax-Music3 Community License**; a GGUF repo's README states **Apache-2.0, inherited from the base
+> model**. Given the H3 licence already excludes US local use, **resolve this before building a
+> commercial workflow on it.** Check `MiniMaxAI/MiniMax-Music3/blob/main/LICENSE` directly.
+
+**Why it fits the Director cleanly:** it is local, ComfyUI-native, driven exactly like everything else
+(*build a graph → POST /prompt → poll*), and it needs **a written caption and lyrics** — which the
+Auteur can already produce. Same division of labour: the LLM writes the words, the model makes the media.
+
+### SoundBoost — the reference architecture, already built
+
+The video's second half uses **SoundBoost** (`soundboost.ai`) — a separate, commercial web product with
+its own credits. It is not part of ComfyUI, and the video is partly a promotion for it. But its published
+pipeline is a **complete working instance of the architecture this document designs**, and the Director
+should steal from it:
+
+```
+song → the engine analyses it → a "director" writes the treatment and shots
+     → stills made from your references → STORYBOARD, approved by you
+     → motion rendered per scene → edit cut to the beat
+```
+
+Four design decisions worth copying outright:
+
+1. **Storyboard first, film second — and it says so explicitly:** *"If a scene is wrong, fix it before
+   filming, not after."* That is our curation gate (§4), stated in one line. It also protects the user's
+   credits, which is the same reason our gate protects GPU minutes.
+2. **Per-scene retake / edit / rewrite**, before *or* after the film.
+3. **Regenerating the film reuses unchanged scenes at no charge** — a shot-level content-addressed cache.
+   Worth copying: shots are immutable artifacts keyed by their inputs, so nothing is recomputed.
+4. **Character consistency from reference photos** (main characters + style references) — the same
+   consistency problem as PuLID, solved with references rather than adapters.
+
+It also has **"Research the world"** (gather real facts and photos of a subject *before* the story is
+written) — which is our self-education loop arriving at the same place from the commercial side.
+
+**The practical read for the author:** the music-video pipeline sold at the **$199/mo "Director" tier**
+is the same shape as the one being built here — except this one runs locally, costs nothing per clip,
+and can be pointed at whatever tools the user already owns. **SoundBoost is the proof the architecture is
+right, and the Director is the unlimited local version of it.**
+
+### Suggested next steps for the Director
+
+1. **Add a `music` provider** — a MiniMax Music 3 adapter against ComfyUI, using the existing graph →
+   `/prompt` → `/history` pattern. Requires the model files, which are not installed.
+2. **Add a caption writer to the Auteur** — extend the existing shot-script prompt with a structured music
+   caption (Global Metadata / Vocal Details / Arrangement) and tagged lyrics. *The LLM writes the words;
+   the model makes the music.*
+3. **Adopt the four design decisions above**, especially the per-scene cache — the Director currently has
+   no notion of a shot being an immutable artifact keyed by its inputs.
+4. **Add a mastering/assembly step.** The Director has no audio post at all; even a simple FFmpeg
+   loudness-normalisation pass would close the gap.
